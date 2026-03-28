@@ -1,0 +1,103 @@
+{
+  "label5MinData": [
+    "Gol-1",
+    "Gol-2",
+    "Gol-3",
+    "Gol-4",
+    "Gol-5a",
+    "Gol-5b",
+    "Gol-6a",
+    "Gol-6b",
+    "Gol-7a",
+    "Gol-7b",
+    "Gol-7c",
+    "Gol-8"
+  ],
+  "lastUpdate5minutes": "2026-03-26 17:15:00",
+
+  // per golongan kendaraan, buat barchart di barchart1
+  "listChart1_Normal": [
+    61,
+    30,
+    1,
+    0,
+    0,
+    2,
+    1,
+    2,
+    1,
+    0,
+    0,
+    0
+  ],
+  "listChart1_Opposite": [
+    87,
+    20,
+    8,
+    3,
+    0,
+    0,
+    0,
+    0,
+    3,
+    1,
+    0,
+    0
+  ],
+  "speed_Normal": [
+    0.0,
+    0.0,
+    20.61,
+    14.39,
+    15.67,
+    0.0,
+    0.0,
+    0.0,
+    8.43,
+    0.0,
+    0.0,
+    11.78
+  ],
+  "speed_Opposite": [
+    17.02,
+    0.0,
+    0.0,
+    0.0,
+    8.82,
+    14.41,
+    22.84,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    14.91
+  ],
+  "speed_gol_Normal": [
+    3.9266666666666663, // sepeda motor arah normal
+    14.39, // mobil penumpang arah normal
+    10.02, // kendaraan sedang arah normal
+    2.81, // bus besar normal
+    7.088 // truk barang normal
+  ],
+  "speed_gol_Opposite": [
+    10.643333333333333, // sepeda motor arah opposite
+    0.0, // mobil penumpang arah opposite
+    7.743333333333333, // kendaraan sedang arah opposite
+    7.613333333333333, // bus besar opposite
+    7.8 // truk barang opposite
+  ],
+  "speed_max_gol_Normal_list": [
+    75, // sepeda motor arah normal
+    75, // mobil penumpang arah normal
+    75, // kendaraan sedang arah normal
+    75, // bus besar normal
+    75 // truk barang normal
+  ],
+  "speed_max_gol_Opposite_list": [
+    75, //sepeda motor opposite
+    82.27, // mobil penumpang opposite
+    75, // kendaraan sedang opposite
+    82.35000000000001, // bus besar opposite
+    75 // truk barang opposite
+  ]
+}

@@ -1,0 +1,41 @@
+Metadata for cctv-chart1Data.json
+URL: https://apace-ai.com/generateChart1Data/APC17034
+
+Gol-1: Kendaraan Golongan 1 (contoh: )
+Gol-2: Kendaraan Golongan 2 (contoh: )
+Gol-3: Kendaraan Golongan 3 (contoh: )
+Gol-5a: Kendaraan Golongan 5a (contoh: )
+
+lastUpdate5minutes: data updated every 5 minutes
+* Normal = Arah normal
+  Opposite = arah berlawanan
+
+listChart1_*: chart 1 
+speed_* : speed
+speed_gol_*: speed gol
+speed_max_gol_*_list: speed max normal
+{
+    "label5MinData": [
+      "Gol-1",
+      "Gol-2",
+      "Gol-3",
+      "Gol-4",
+      "Gol-5a",
+      "Gol-5b",
+      "Gol-6a",
+      "Gol-6b",
+      "Gol-7a",
+      "Gol-7b",
+      "Gol-7c",
+      "Gol-8"
+    ],
+    "lastUpdate5minutes": "2026-03-26 04:30:00",
+    "listChart1_Normal": [7, 4, 3, 2, 0, 0, 0, 1, 0, 0, 0, 0],
+    "listChart1_Opposite": [6, 11, 3, 1, 0, 0, 0, 1, 0, 0, 0, 0],
+    "speed_Normal": [30.72, 32.71, 27.79, 0, 0, 0, 13.35, 0, 0, 0, 0, 27.62],
+    "speed_Opposite": [25.17, 29.44, 22.08, 0, 0, 0, 12.18, 23.33, 0, 0, 0, 12.35],
+    "speed_gol_Normal": [30.35, 0, 0, 4.45, 13.219],
+    "speed_gol_Opposite": [22.32, 0, 0, 11.8366666666667, 12.455],
+    "speed_max_gol_Normal_list": [75, 75, 75, 75, 75],
+    "speed_max_gol_Opposite_list": [81.0166666666667, 75, 75, 99.98, 75]
+  }

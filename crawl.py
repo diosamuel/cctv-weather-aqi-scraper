@@ -1,0 +1,272 @@
+import json
+import time
+import duckdb
+from pathlib import Path
+from typing import Any, Dict, List
+import requests
+
+BASE_DIR = Path(__file__).resolve().parent
+CHART_SQL_PATH = BASE_DIR / "db" / "table.sql"
+CCTV_LIST_PATH = BASE_DIR / "dataset" / "cctv-list.json"
+DUCKDB_PATH = BASE_DIR / "cctv.duckdb"
+
+API_CHART1 = "https://apace-ai.com/generateChart1Data/"
+API_CHART2 = "https://apace-ai.com/generateChart2Data/"
+API_CHART3 = "https://apace-ai.com/generateChart3Data/"
+
+POLL_SECONDS = 30
+BROWSER_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/146.0.0.0 Safari/537.36"
+)
+
+def fetch_json(url: str, referrer: str, timeout: int = 30) -> Dict[str, Any]:
+    headers = {
+        "User-Agent": BROWSER_USER_AGENT,
+        "accept": "application/json, text/javascript, */*; q=0.01",
+        "accept-language": "en-US,en;q=0.9",
+        "priority": "u=1, i",
+        "sec-ch-ua": '"Chromium";v="146", "Not-A.Brand";v="24", "Google Chrome";v="146"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin",
+        "x-requested-with": "XMLHttpRequest",
+        "referer": referrer,
+    }
+
+    r = requests.get(url, headers=headers, timeout=timeout)
+    r.raise_for_status()  # raise error if request failed
+
+    payload = r.json()
+
+    if not isinstance(payload, dict):
+        raise ValueError(f"Expected JSON object from {url}")
+
+    return payload
+
+def load_camera_rows() -> List[List[Any]]:
+    payload = json.loads(CCTV_LIST_PATH.read_text(encoding="utf-8"))
+    camera_array = payload.get("cameraArray", [])
+    if not isinstance(camera_array, list):
+        raise ValueError("cameraArray is not a list")
+    return camera_array
+
+def normalize_camera_api_id(camera_row: List[Any]) -> str:
+    route_slug = str(camera_row[5]).strip() if len(camera_row) > 5 else ""
+    if route_slug:
+        return route_slug.strip("/").upper()
+    code = str(camera_row[0]).strip() if len(camera_row) > 0 else ""
+    if code.upper().startswith("APC"):
+        return code.upper()
+    return f"APC{code}"
+
+def init_db(con: duckdb.DuckDBPyConnection) -> None:
+    schema_sql = CHART_SQL_PATH.read_text(encoding="utf-8")
+    con.execute(schema_sql)
+
+def insert_camera_list(con: duckdb.DuckDBPyConnection, camera_rows: List[List[Any]]) -> None:
+    insert_sql = """
+        INSERT INTO cctv_list_data (
+            camera_code, latitude, longitude, sort_order, location_text, route_slug
+        ) VALUES (?, ?, ?, ?, ?, ?)
+    """
+    for row in camera_rows:
+        camera_code = str(row[0]) if len(row) > 0 else None
+        lat = float(row[1]) if len(row) > 1 and row[1] is not None else None
+        lon = float(row[2]) if len(row) > 2 and row[2] is not None else None
+        sort_order = int(row[3]) if len(row) > 3 and row[3] is not None else None
+        location_text = str(row[4]) if len(row) > 4 else None
+        route_slug = str(row[5]) if len(row) > 5 else None
+        con.execute(insert_sql, [camera_code, lat, lon, sort_order, location_text, route_slug])
+
+def insert_chart1(con: duckdb.DuckDBPyConnection, camera_code: str, payload: Dict[str, Any]) -> None:
+    sql = """
+        INSERT INTO vehicle_speed (
+            camera_code,
+            last_update_5minutes,
+            label5min_data,
+            listchart1_normal,
+            listchart1_opposite,
+            speed_normal,
+            speed_opposite,
+            speed_gol_normal,
+            speed_gol_opposite,
+            speed_max_gol_normal_list,
+            speed_max_gol_opposite_list
+        )
+        VALUES (
+            ?,
+            ?,
+            CAST(? AS JSON),
+            CAST(? AS JSON),
+            CAST(? AS JSON),
+            CAST(? AS JSON),
+            CAST(? AS JSON),
+            CAST(? AS JSON),
+            CAST(? AS JSON),
+            CAST(? AS JSON),
+            CAST(? AS JSON)
+        )
+    """
+    con.execute(
+        sql,
+        [
+            camera_code,
+            payload.get("lastUpdate5minutes"),
+            json.dumps(payload.get("label5MinData", [])),
+            json.dumps(payload.get("listChart1_Normal", [])),
+            json.dumps(payload.get("listChart1_Opposite", [])),
+            json.dumps(payload.get("speed_Normal", [])),
+            json.dumps(payload.get("speed_Opposite", [])),
+            json.dumps(payload.get("speed_gol_Normal", [])),
+            json.dumps(payload.get("speed_gol_Opposite", [])),
+            json.dumps(payload.get("speed_max_gol_Normal_list", [])),
+            json.dumps(payload.get("speed_max_gol_Opposite_list", [])),
+        ],
+    )
+
+def insert_chart2(con: duckdb.DuckDBPyConnection, camera_code: str, payload: Dict[str, Any]) -> None:
+    sql = """
+        INSERT INTO hourly_vehicle_speed (
+            camera_code,
+            hourly_label,
+            listdata60_60_sm,
+            listdata60_60_mp,
+            listdata60_60_ks,
+            listdata60_60_bb,
+            listdata60_60_tb,
+            totalvolume_sm,
+            totalvolume_mp,
+            totalvolume_ks,
+            totalvolume_bb,
+            totalvolume_tb
+        )
+        VALUES (
+            ?,
+            CAST(? AS JSON),
+            CAST(? AS JSON),
+            CAST(? AS JSON),
+            CAST(? AS JSON),
+            CAST(? AS JSON),
+            CAST(? AS JSON),
+            ?, ?, ?, ?, ?
+        )
+    """
+    con.execute(
+        sql,
+        [
+            camera_code,
+            json.dumps(payload.get("hourlyLabel", [])),
+            json.dumps(payload.get("listData60_60_SM", [])),
+            json.dumps(payload.get("listData60_60_MP", [])),
+            json.dumps(payload.get("listData60_60_KS", [])),
+            json.dumps(payload.get("listData60_60_BB", [])),
+            json.dumps(payload.get("listData60_60_TB", [])),
+            payload.get("totalVolume_SM"),
+            payload.get("totalVolume_MP"),
+            payload.get("totalVolume_KS"),
+            payload.get("totalVolume_BB"),
+            payload.get("totalVolume_TB"),
+        ],
+    )
+
+
+def insert_chart3(con: duckdb.DuckDBPyConnection, camera_code: str, payload: Dict[str, Any]) -> None:
+    sql = """
+        INSERT INTO all_timeseries_vehicle_speed (
+            camera_code,
+            hourly_label,
+            datanormal_sm, datanormal_mp, datanormal_ks, datanormal_bb, datanormal_tb, datanormal_all,
+            datalastdatenormal_sm, datalastdatenormal_mp, datalastdatenormal_ks, datalastdatenormal_bb, datalastdatenormal_tb, datalastdatenormal_all,
+            datalast7normal_sm, datalast7normal_mp, datalast7normal_ks, datalast7normal_bb, datalast7normal_tb, datalast7normal_all,
+            dataopposite_sm, dataopposite_mp, dataopposite_ks, dataopposite_bb, dataopposite_tb, dataopposite_all,
+            datalastdateopposite_sm, datalastdateopposite_mp, datalastdateopposite_ks, datalastdateopposite_bb, datalastdateopposite_tb, datalastdateopposite_all,
+            datalast7opposite_sm, datalast7opposite_mp, datalast7opposite_ks, datalast7opposite_bb, datalast7opposite_tb, datalast7opposite_all,
+            databoth_sm, databoth_mp, databoth_ks, databoth_bb, databoth_tb, databoth_all,
+            datalastdateboth_sm, datalastdateboth_mp, datalastdateboth_ks, datalastdateboth_bb, datalastdateboth_tb, datalastdateboth_all,
+            datalast7both_sm, datalast7both_mp, datalast7both_ks, datalast7both_bb, datalast7both_tb, datalast7both_all
+        )
+        VALUES (
+            ?,
+            CAST(? AS JSON),
+            CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON),
+            CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON),
+            CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON),
+            CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON),
+            CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON),
+            CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON),
+            CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON),
+            CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON),
+            CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON)
+        )
+    """
+    keys = [
+        "hourlyLabel",
+        "dataNormal_SM", "dataNormal_MP", "dataNormal_KS", "dataNormal_BB", "dataNormal_TB", "dataNormal_All",
+        "dataLastDateNormal_SM", "dataLastDateNormal_MP", "dataLastDateNormal_KS", "dataLastDateNormal_BB", "dataLastDateNormal_TB", "dataLastDateNormal_All",
+        "dataLast7Normal_SM", "dataLast7Normal_MP", "dataLast7Normal_KS", "dataLast7Normal_BB", "dataLast7Normal_TB", "dataLast7Normal_All",
+        "dataOpposite_SM", "dataOpposite_MP", "dataOpposite_KS", "dataOpposite_BB", "dataOpposite_TB", "dataOpposite_All",
+        "dataLastDateOpposite_SM", "dataLastDateOpposite_MP", "dataLastDateOpposite_KS", "dataLastDateOpposite_BB", "dataLastDateOpposite_TB", "dataLastDateOpposite_All",
+        "dataLast7Opposite_SM", "dataLast7Opposite_MP", "dataLast7Opposite_KS", "dataLast7Opposite_BB", "dataLast7Opposite_TB", "dataLast7Opposite_All",
+        "dataBoth_SM", "dataBoth_MP", "dataBoth_KS", "dataBoth_BB", "dataBoth_TB", "dataBoth_All",
+        "dataLastDateBoth_SM", "dataLastDateBoth_MP", "dataLastDateBoth_KS", "dataLastDateBoth_BB", "dataLastDateBoth_TB", "dataLastDateBoth_All",
+        "dataLast7Both_SM", "dataLast7Both_MP", "dataLast7Both_KS", "dataLast7Both_BB", "dataLast7Both_TB", "dataLast7Both_All",
+    ]
+    values = [camera_code] + [json.dumps(payload.get(k, [])) for k in keys]
+    con.execute(sql, values)
+
+
+def crawl_once(con: duckdb.DuckDBPyConnection, camera_rows: List[List[Any]]) -> None:
+    for row in camera_rows:
+        camera_code = str(row[0]).strip()
+        api_id = normalize_camera_api_id(row)
+        referrer = f"https://apace-ai.com/{api_id}/"
+
+        try:
+            c1 = fetch_json(f"{API_CHART1}{api_id}", referrer=referrer)
+            c2 = fetch_json(f"{API_CHART2}{api_id}", referrer=referrer)
+            c3 = fetch_json(f"{API_CHART3}{api_id}", referrer=referrer)
+
+            insert_chart1(con, camera_code, c1)
+            insert_chart2(con, camera_code, c2)
+            insert_chart3(con, camera_code, c3)
+
+        except requests.exceptions.Timeout as e:
+            print(f"[WARN] {camera_code} ({api_id}) timeout: {e}")
+
+        except requests.exceptions.HTTPError as e:
+            print(f"[WARN] {camera_code} ({api_id}) HTTP error: {e}")
+
+        except requests.exceptions.RequestException as e:
+            # catches all other requests-related errors
+            print(f"[WARN] {camera_code} ({api_id}) request failed: {e}")
+
+        except json.JSONDecodeError as e:
+            print(f"[WARN] {camera_code} ({api_id}) invalid JSON: {e}")
+
+        except ValueError as e:
+            print(f"[WARN] {camera_code} ({api_id}) value error: {e}")
+
+        except Exception as e:
+            print(f"[ERROR] {camera_code} ({api_id}) unexpected error: {e}")
+
+
+def main() -> None:
+    camera_rows = load_camera_rows()
+    con = duckdb.connect(str(DUCKDB_PATH))
+    init_db(con)
+    insert_camera_list(con, camera_rows)
+
+    print(f"Started crawl. cameras={len(camera_rows)} interval={POLL_SECONDS}s db={DUCKDB_PATH}")
+    while True:
+        started = time.time()
+        crawl_once(con, camera_rows)
+        elapsed = time.time() - started
+        sleep_for = max(0.0, POLL_SECONDS - elapsed)
+        time.sleep(sleep_for)
+
+if __name__ == "__main__":
+    main()
