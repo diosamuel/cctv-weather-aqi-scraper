@@ -131,53 +131,11 @@ CREATE TABLE IF NOT EXISTS cctv_list_data (
   camera_code VARCHAR(32),
   latitude DOUBLE PRECISION,
   longitude DOUBLE PRECISION,
-  sort_order INT,
   location_text TEXT,
   route_slug VARCHAR(64),
-  administrative_code VARCHAR(13),
+  adm2 VARCHAR(13),
   ingested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Populate administrative_code after loading wilayah_* tables:
 --   cron/cctv_list_data_administrative_code.sql
-
--- ==========================================================
--- 5) example-weather-bmkg.json (flattened weather slot table)
--- ==========================================================
-CREATE SEQUENCE IF NOT EXISTS seq_example_weather_bmkg_data_id START 1;
-
-CREATE TABLE IF NOT EXISTS example_weather_bmkg_data (
-  id BIGINT PRIMARY KEY DEFAULT nextval('seq_example_weather_bmkg_data_id'),
-  adm1 VARCHAR(16),
-  adm2 VARCHAR(16),
-  adm3 VARCHAR(16),
-  adm4 VARCHAR(32),
-  provinsi VARCHAR(128),
-  kotkab VARCHAR(128),
-  kecamatan VARCHAR(128),
-  desa VARCHAR(128),
-  lon DOUBLE PRECISION,
-  lat DOUBLE PRECISION,
-  timezone VARCHAR(32),
-
-  datetime_utc TIMESTAMP,
-  datetime_local TIMESTAMP,
-  temperature_c NUMERIC(8,2),
-  cloud_cover_pct NUMERIC(8,2),
-  precipitation_mm NUMERIC(10,3),
-  weather_code INT,
-  weather_desc VARCHAR(128),
-  weather_desc_en VARCHAR(128),
-  wind_deg NUMERIC(8,2),
-  wind_from VARCHAR(16),
-  wind_to VARCHAR(16),
-  wind_speed_ms NUMERIC(8,2),
-  humidity_pct NUMERIC(8,2),
-  visibility_m NUMERIC(12,2),
-  visibility_text VARCHAR(64),
-  time_index VARCHAR(32),
-  analysis_date TIMESTAMP,
-  icon_url TEXT,
-
-  ingested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
